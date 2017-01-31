@@ -2,13 +2,14 @@ body {
     background-size: 100%;
     background-color: #F4F4F4;
 }
-h2{
+h2 {
     line-height: 44px;
     font-family: Helvetica, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-size: 30px;
-    font-weight: 500;}
+    font-weight: 500;
+}
 div {
     position: absolute;
     transform: translate(-50%,-50%);
@@ -16,14 +17,15 @@ div {
     padding: 10px;
     -webkit-transform: translate(0) scale(1.0, 1.0);
 }
-strong {font-size: 16px;
+strong {
+    font-size: 16px;
     font-weight: 600;
     width: 80%;
     color: #474747;
     text-align: left;
     height: 20px;
     line-height: 2;
-    }
+}
 table {
     align: center;
 }
@@ -36,7 +38,6 @@ img {
     opacity: 0.7;
     border-radius: 10px;
     transition: opacity 0.5s;
-    
 }
 img:hover {
     opacity :1;
@@ -55,7 +56,7 @@ img:hover {
     float:left;
     opacity:1;
 }
-dd{
+dd {
     margin-left:0px;
     font-family: Helvetica, sans-serif;
     font-size: 12px;
