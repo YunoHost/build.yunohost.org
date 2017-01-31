@@ -7,3 +7,6 @@
 # Ignore signature and checksums
 *.sig
 *.sum
+
+# Ignore Debian packages
+*.deb
