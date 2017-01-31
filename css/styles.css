@@ -1,69 +1,139 @@
+/**
+ * http://nicolasgallagher.com/micro-clearfix-hack/
+ * For modern browsers
+ * 1. The space content is one way to avoid an Opera bug when the
+ *    contenteditable attribute is included anywhere else in the document.
+ *    Otherwise it causes space to appear at the top and bottom of elements
+ *    that are clearfixed.
+ * 2. The use of `table` rather than `block` is only necessary if using
+ *    `:before` to contain the top-margins of child elements.
+ */
+.cf:before,
+.cf:after {
+    content: " "; /* 1 */
+    display: table; /* 2 */
+}
+
+.cf:after {
+    clear: both;
+}
+
+
+/**
+ * Box model
+ * https://www.paulirish.com/2012/box-sizing-border-box-ftw/
+ */
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+
+
+
+/**
+ * GLOBAL STYLES
+ */
 body {
     background-size: 100%;
     background-color: #F4F4F4;
-}
-h2 {
-    line-height: 44px;
-    font-family: Helvetica, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    font-size: 30px;
-    font-weight: 500;
-}
-div {
-    position: absolute;
-    transform: translate(-50%,-50%);
-    background-color: rgba(255,255,255,0.6);
-    padding: 10px;
-    -webkit-transform: translate(0) scale(1.0, 1.0);
-}
-strong {
-    font-size: 16px;
-    font-weight: 600;
-    width: 80%;
     color: #474747;
-    text-align: left;
-    height: 20px;
-    line-height: 2;
-}
-table {
-    align: center;
-}
-td {
-    padding: 20px;
-    padding-bottom:0px;
-    padding-top:0px;
-}
-img {
-    opacity: 0.7;
-    border-radius: 10px;
-    transition: opacity 0.5s;
-}
-img:hover {
-    opacity :1;
-}
-.center {
-    left: 18.8%;
-    text-align:left;
-    width:auto;
-    -webkit-box-shadow: 1px 1px 2px 0px rgba(0,0,0,0.2);
-    -moz-box-shadow: 1px 1px 2px 0px rgba(0,0,0,0.2);
-    box-shadow: 1px 1px 2px 0px rgba(0,0,0,0.2);
-    background-color: #FFF;
-}
-.logo {
-    padding: 20px;
-    float:left;
-    opacity:1;
-}
-dd {
-    margin-left:0px;
     font-family: Helvetica, sans-serif;
-    font-size: 12px;
-    font-weight: 400;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    line-height: 1.8;
-    color: #999;
-    text-decoration:none;
+}
+
+.container {
+    background-color: #fff;
+    margin: 1em;
+    padding: 1em;
+}
+
+a, a:link, a:visited {
+    color: #c44;
+    text-decoration: none;
+}
+a:active, a:focus, a:hover {
+    color: #c44;
+    text-decoration: underline;
+}
+
+
+
+/**
+ * HEADER
+ */
+header {
+    padding: 1em;
+    margin-bottom: 4em;
+}
+header .logo {
+    display: block;
+    margin: 0 auto 2em auto;
+}
+@media screen and (min-width:600px) {
+    header .logo {
+        float: left;
+        margin: 0 2em 0 0;
+    }
+}
+
+h1 {
+    margin: 0 0 0.5em 0;
+    font-size: 2em;
+    line-height: 1.4;
+    font-weight: normal;
+}
+
+header .links {
+    list-style: square inside;
+}
+
+
+/**
+ * IMAGES
+ */
+.archs {
+    clear: both;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    /* border-bottom: 0.5em solid #F4F4F4; */
+    /* margin-bottom: 2em; */
+}
+
+.archs section {
+    padding: 2em 1em;
+    margin: 1em 1%;
+    text-align: center;
+    border-top: 0.5em solid #F4F4F4;
+    width: 98%;
+}
+@media screen and (min-width: 640px) {
+    .archs section {width: 48%;}
+}
+@media screen and (min-width: 980px) {
+    .archs section {width: 23%;}
+}
+
+.archs section img {
+    display: block;
+    margin: auto;
+    max-height: 160px;
+}
+
+.archs section h2 {
+    font-size: 1.2em;
+    line-height: 1.5;
+    min-height: 3em; /* 2 lines */
+}
+
+.archs .notes {
+    font-size: 0.75em;
+    color: #666;
+    text-align: left;
+    margin: 1em 0;
+}
+.archs p.notes {
+    margin: 1em 0;
 }
