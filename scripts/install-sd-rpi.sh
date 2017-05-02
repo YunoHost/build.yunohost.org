@@ -22,26 +22,120 @@
 
 set -e
 
+########################
+### GLOBAL VARIABLES ###
+########################
+
+url_base=https://build.yunohost.org/
+deb_version=jessie
+tmp_dir=$(mktemp -dp . .install-sd.sh_tmpXXXXXX)
+raspi_mountpoint="${tmp_dir}/raspi_mountpoint"
+files_path="${tmp_dir}/files"
+loopdev=
+
+img_name="yunohost-${deb_version}-latest-sdraspi-stable.img"
+tar_name="${img_name}.tar.xz"
+checksum_name="${tar_name}.sum"
+
+working_dir=$(dirname $0)
+img_path="${working_dir}/${img_name}"
+tar_path="${working_dir}/${tar_name}"
+checksum_path="${working_dir}/${checksum_name}"
+
+opt_findraspberries=false
+opt_debug=false
+opt_custom_sdcardpath=false
+opt_custom_img=false
+opt_custom_checksum=false
+
+##############
+### SCRIPT ###
+##############
+
+function parse_options()
+{
+    while getopts "s:f:mc:ldh" opt; do
+      case $opt in
+        s) opt_custom_sdcardpath=true; sdcardpath=$OPTARG ;;
+        f) opt_custom_img=true
+            if [[ "${OPTARG}" =~ \.img\.tar\.xz$ ]]
+            then
+                tar_path="$OPTARG" 
+                img_path=$(echo $OPTARG | sed 's/\.tar\.xz//g')
+            else if [[ "${OPTARG}" =~ \.img$ ]]; 
+            then
+                img_path="$OPTARG" 
+                tar_path="${img_path}.tar.xz"
+            else
+                exit_error "Option -f must be provided with a file ending with .img or .img.tar.xz"
+            fi fi
+            ;;
+        c) opt_custom_checksum=true; checksum_path=$OPTARG; ;;
+        l) opt_findraspberries=true ;;
+        d) opt_debug=true ;;
+        h) exit_usage ;;
+        \?) exit_usage ;;
+      esac
+    done
+}
 
 ###############
 ### HELPERS ###
 ###############
 
-function preamble() {
+readonly normal=$(printf '\033[0m')
+readonly bold=$(printf '\033[1m')
+readonly faint=$(printf '\033[2m')
+readonly underline=$(printf '\033[4m')
+readonly negative=$(printf '\033[7m')
+readonly red=$(printf '\033[31m')
+readonly green=$(printf '\033[32m')
+readonly orange=$(printf '\033[33m')
+readonly yellow=$(printf '\033[93m')
+readonly white=$(printf '\033[39m')
+
+function show_usage() 
+{
+  cat >&2 <<- EOF
+  ${bold}OPTIONS${normal}
+    ${bold}-s${normal} ${underline}path${normal}
+       Target SD card block device (e.g. /dev/sdb, /dev/mmcblk0)
+       ${faint}Default: Assisted Block Device Detection${normal}
+    ${bold}-f${normal} ${underline}path${normal}
+       Debian/YunoHost image file (.img or .img.tar.xz)
+       ${faint}Default: Automatic download from ${url_base}${normal}
+    ${bold}-c${normal} ${underline}path${normal}
+       Checksum file to verify image integrity (.img.tar.xz.sum)
+       ${faint}Default with -f: Automatically filled if there is a .sum next to the image file, else no image integrity checking${normal}
+       ${faint}Default without -f: Automatic download from ${url_base}${normal}
+    ${bold}-l${normal}
+       Scan local network to find IPv4s corresponding to Raspberry Pi
+    ${bold}-d${normal}
+       Enable debug messages
+    ${bold}-h${normal}
+       Show this help
+EOF
+}
+
+function preamble() 
+{
   local confirm=no
 
-  echo -ne "\e[91m"
-  echo "THERE IS NO WARRANTY FOR THIS PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW."
-  echo "EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER"
-  echo "PARTIES PROVIDE THE PROGRAM \"AS IS\" WITHOUT WARRANTY OF ANY KIND, EITHER"
-  echo "EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF"
-  echo "MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE"
-  echo "QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE"
-  echo "DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION."
-  echo "CHOOSING A WRONG BLOCK DEVICE CAN MAKE YOU LOSE PERSONAL DATA. BE CAREFUL!"
-  echo -e "\e[39m"
-
-  echo -n "Continue? (yes/no) "
+  cat <<- EOF
+	$red
+	THERE IS NO WARRANTY FOR THIS PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
+	EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER
+	PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER
+	EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+	MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE
+	QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD THE PROGRAM PROVE
+	DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+	CHOOSING A WRONG BLOCK DEVICE CAN MAKE YOU LOSE PERSONAL DATA. BE CAREFUL!
+	$white
+	
+	Continue? (yes/no)
+EOF
+  
   read confirm && echo
 
   if [ "${confirm}" != yes ]; then
@@ -49,37 +143,18 @@ function preamble() {
   fi
 }
 
-function show_usage() {
-  echo -e "\e[1mOPTIONS\e[0m" >&2
-  echo -e "  \e[1m-s\e[0m \e[4mpath\e[0m" >&2
-  echo -e "     Target SD card block device (e.g. /dev/sdb, /dev/mmcblk0)" >&2
-  echo -e "     \e[2mDefault: Assisted Block Device Detection\e[0m" >&2
-  echo -e "  \e[1m-f\e[0m \e[4mpath\e[0m" >&2
-  echo -e "     Debian/YunoHost image file (.img or .img.tar.xz)" >&2
-  echo -e "     \e[2mDefault: Automatic download from ${url_base}\e[0m" >&2
-  echo -e "  \e[1m-g\e[0m \e[4mpath\e[0m" >&2
-  echo -e "     GPG signature file for checking image integrity (.img.tar.xz.asc)" >&2
-  echo -e "     \e[2mDefault with -f: Automatically filled if there is a .asc next to the image file, else no image integrity checking\e[0m" >&2
-  echo -e "     \e[2mDefault without -f: Automatic download from ${url_base}\e[0m" >&2
-  echo -e "  \e[1m-l\e[0m" >&2
-  echo -e "     Just scan network to find local IPv4s corresponding to Raspberry Pi" >&2
-  echo -e "  \e[1m-d\e[0m" >&2
-  echo -e "     Enable debug messages" >&2
-  echo -e "  \e[1m-h\e[0m" >&2
-  echo -e "     Show this help" >&2
-}
-
-function exit_error() {
+function exit_error() 
+{
   local msg=${1}
   local usage=${2}
 
   if [ ! -z "${msg}" ]; then
-    echo -e "\e[31m\e[1m[ERR] $1\e[0m" >&2
+    echo "${red}${bold}[ERR] $1${normal}" >&2
   fi
 
   if [ "${usage}" == usage ]; then
     if [ -z "${msg}" ]; then
-      echo -e "\n       \e[7m\e[1m YunoHost On Raspberry - SD Card Installer \e[0m\n"
+      echo -e "\n       ${negative}${bold} YunoHost On Raspberry - SD Card Installer ${normal}\n"
     else
       echo
     fi
@@ -90,40 +165,43 @@ function exit_error() {
   exit 1
 }
 
-function exit_usage() {
+function exit_usage() 
+{
   local msg=${1}
-
   exit_error "${msg}" usage
 }
 
-function exit_normal() {
+function exit_normal() 
+{
   exit 0
 }
 
-function info() {
+function info() 
+{
   local msg=${1}
-
-  echo -e "\e[32m[INFO] ${msg}\e[0m" >&2
+  echo "${green}[INFO] ${msg}${normal}" >&2
 }
 
-function warn() {
+function warn() 
+{
   local msg=${1}
-
-  echo -e "\e[93m[WARN] ${msg}\e[0m" >&2
+  echo -e "${yellow}[WARN] ${msg}${normal}" >&2
 }
 
-function debug() {
+function debug() 
+{
   local msg=${1}
 
   if $opt_debug; then
-    echo -e "\e[33m[DEBUG] ${msg}\e[0m" >&2
+    echo -e "${orange}[DEBUG] ${msg}${normal}" >&2
   fi
 }
 
-function confirm_writing() {
-  local confirm=
+function confirm_writing() 
+{
+  local confirm
 
-  echo -en "\e[93m\e[1mWARNING:\e[0m Data on ${opt_sdcardpath} will be lost. Confirm? (yes/no) "
+  echo -en "${yellow}${bold}WARNING:${normal} Data on ${sdcardpath} will be lost. Confirm? (yes/no) "
   read confirm
 
   if [ "${confirm}" != yes ]; then
@@ -131,12 +209,13 @@ function confirm_writing() {
   fi
 }
 
-function get_partition_path() {
+function get_partition_path() 
+{
   local partition_number=${1}
-  local partition_path="${opt_sdcardpath}${partition_number}"
+  local partition_path="${sdcardpath}${partition_number}"
 
-  if [[ "${opt_sdcardpath}" =~ /mmcblk[0-9]$ ]]; then
-    partition_path="${opt_sdcardpath}p${partition_number}"
+  if [[ "${sdcardpath}" =~ /mmcblk[0-9]$ ]]; then
+    partition_path="${sdcardpath}p${partition_number}"
   fi
 
   echo "${partition_path}"
@@ -147,7 +226,8 @@ function get_partition_path() {
 ### CHECKING FUNCTIONS ###
 ##########################
 
-function check_sudo() {
+function check_sudo() 
+{
   if ! which sudo &> /dev/null; then
     exit_error "sudo command is required"
   fi
@@ -159,9 +239,9 @@ function check_sudo() {
   fi
 }
 
-function check_bins() {
+function check_bins() 
+{
   local bins=(curl tar awk mountpoint losetup partprobe)
-
 
   if [ ! -z "${opt_gpgpath}" ]; then
     bins+=(gpg)
@@ -174,7 +254,8 @@ function check_bins() {
   done
 }
 
-function check_findraspberries_bins() {
+function check_findraspberries_bins() 
+{
   local bins=(arp-scan awk)
 
   for i in "${bins[@]}"; do
@@ -184,42 +265,43 @@ function check_findraspberries_bins() {
   done
 }
 
-function check_args() {
-  if [[ ! -b "${opt_sdcardpath}" || ! "${opt_sdcardpath}" =~ ^/dev/(sd[a-z]|mmcblk[0-9])$ ]]; then
+function check_args() 
+{
+  if [[ ! -b "${sdcardpath}" || ! "${sdcardpath}" =~ ^/dev/(sd[a-z]|mmcblk[0-9])$ ]]; then
     exit_usage "-s should be a block device corresponding to your SD card (/dev/sd[a-z]\$ or /dev/mmcblk[0-9]\$)"
   fi
 
-  if [ ! -z "${opt_gpgpath}" ]; then
-    if [ ! -r "${opt_gpgpath}" ]; then
-      exit_usage "File given to -g cannot be read"
+  if ${opt_custom_checksum}; then
+    if [ ! -r "${checksum_path}" ]; then
+      exit_usage "File given to -c cannot be read"
     fi
 
-    if [[ ! "${opt_gpgpath}" =~ \.img\.tar\.xz\.asc$ ]]; then
-      exit_usage "Filename given to -g must end with .img.tar.xz.asc"
+    if [[ ! "${checksum_path}" =~ \.img\.tar\.xz\.sum$ ]]; then
+      exit_usage "Filename given to -c must end with .img.tar.xz.sum"
     fi
   fi
 
-  if [ ! -z "${opt_imgpath}" ]; then
-    if [ ! -r "${opt_imgpath}" ]; then
+  if ${opt_custom_img}; then
+    if [ ! -r "${img_path}" ]; then
       exit_usage "File given to -f cannot be read"
     fi
 
-    if [[ ! "${opt_imgpath}" =~ \.img(\.tar\.xz)?$ ]]; then
+    if [[ ! "${img_path}" =~ \.img(\.tar\.xz)?$ ]]; then
       exit_usage "Filename given to -f must end with .img or .img.tar.xz"
     fi
 
-    if [ -z "${opt_gpgpath}" ]; then
-      if [ -r "${opt_imgpath}.asc" ]; then
-        info "Local GPG signature file found"
-        opt_gpgpath="${opt_imgpath}.asc"
+    if ! ${opt_custom_checksum}; then
+      if [ -r "${img_path}.sum" ]; then
+        info "Local checksum file found"
+        checksum_path="${img_path}.sum"
       fi
     else
-      if [[ "${opt_imgpath}" =~ \.img$ ]] ; then
-        exit_usage "File given to -g cannot be used for checking the file given to -f (not archive version)"
+      if [[ "${img_path}" =~ \.img$ ]] ; then
+        exit_usage "File given to -c cannot be used for checking the file given to -f (not archive version)"
       fi
 
-      if [ "$(basename "${opt_gpgpath}")" != "$(basename "${opt_imgpath}").asc" ] ; then
-        exit_usage "Based on filenames, file given to -g seems not correspond to the file given to -f"
+      if [ "$(basename "${checksum_path}")" != "$(basename "${img_path}").sum" ] ; then
+        exit_usage "Based on filenames, file given to -c seems not correspond to the file given to -f"
       fi
     fi
 
@@ -232,7 +314,8 @@ function check_args() {
 ### FUNCTIONS ###
 #################
 
-function cleaning_exit() {
+function cleaning_exit() 
+{
   local status=$?
   local error=${1}
 
@@ -268,12 +351,14 @@ function cleaning_exit() {
   fi
 }
 
-function cleaning_ctrlc() {
+function cleaning_ctrlc() 
+{
   echo && cleaning_exit error
   exit 1
 }
 
-function find_raspberries() {
+function find_raspberries() 
+{
   local ips=()
   local addip=
   local addhost=
@@ -354,7 +439,8 @@ function find_raspberries() {
   fi
 }
 
-function autodetect_sdcardpath() {
+function autodetect_sdcardpath() 
+{
   echo -n "1. Please, remove the target SD card from your computer if present, then press Enter"
   read -s && echo
   sleep 1
@@ -391,15 +477,16 @@ function autodetect_sdcardpath() {
     read confirm
 
     if [ "${confirm}" == yes ]; then
-      opt_sdcardpath="/dev/${foundblock}"
+      sdcardpath="/dev/${foundblock}"
     else
       exit_error "Aborted"
     fi
   fi
 }
 
-function umount_sdcard() {
-  local partitions=$(mount | grep "^${opt_sdcardpath}" | awk '{ print $1 }')
+function umount_sdcard() 
+{
+  local partitions=$(mount | grep "^${sdcardpath}" | awk '{ print $1 }')
 
   if [ ! -z "${partitions}" ]; then
      IFS=$'\n'
@@ -414,11 +501,13 @@ function umount_sdcard() {
       fi
     done
   else
-    debug "${opt_sdcardpath}* is not mounted"
+    debug "${sdcardpath}* is not mounted"
   fi
 }
 
-function download_file() {
+function download_file() 
+{
+
   local url=$1
   local dest_dir=$2
 
@@ -431,55 +520,59 @@ function download_file() {
   return 0
 }
 
-function download_img() {
+function download_img() 
+{
 
-  local tar_name="yunohost-jessie-latest-sdraspi-stable.img.tar.xz"
+  debug "Image file: ${tar_name}"
 
-  info "Image file: ${tar_name}"
+  if [ -e ${tar_path} ]
+  then
+      info "Image archive file already present, verifying checksum..."
+      if check_checksum
+      then
+        info "Checksum matched ! No need to redownload image."
+        return 0
+      else
+        info "Checksum mismatch. Redownloading image."
+      fi
+  fi
 
-  if ! download_file "${url_base}${tar_name}" "${tmp_dir}"; then
+exit
+
+  if ! download_file "${url_base}${tar_name}" "${working_dir}"; then
     exit_error "Image download failed"
   fi
 
-  img_path="${tmp_dir}/${tar_name}"
 }
 
-function download_gpg() {
-  local gpg_name="$(basename "${img_path}").asc"
+function download_checksum() 
+{
 
-  debug "GPG signature file: ${gpg_name}"
+  debug "Checksum file: ${checksum_name}"
 
-  if ! download_file "${url_base}${gpg_name}" "${tmp_dir}"; then
-    exit_error "GPG signature download failed"
-  fi
-
-  gpg_path="${tmp_dir}/${gpg_name}"
-}
-
-function check_gpg() {
-  debug "Creating GnuPG directory: ${tmp_dir}/.gnupg"
-
-  if ! gpg --homedir "${tmp_dir}/.gnupg" -qq --no-tty --no-verbose --batch --list-keys &> /dev/null; then
-    exit_error "Cannot create GnuPG directory"
-  fi
-
-  debug "Requesting GPG key ${gpg_key} from HKP server ${gpg_server}"
-
-  if ! gpg --homedir "${tmp_dir}/.gnupg" --keyserver "${gpg_server}" -q --no-tty --no-verbose --batch --keyid-format 0xlong --recv-key "${gpg_key}" &> /dev/null; then
-    exit_error "GPG key download failed"
-  fi
-
-  if ! gpg --trust-model always --no-options --homedir "${tmp_dir}/.gnupg" -q --no-tty --verify "${gpg_path}" &> /dev/null; then
-    exit_error "GPG signature error"
-  else
-    info "GPG signature successfully verified"
+  if ! download_file "${url_base}${checksum_name}" "${working_dir}"; then
+    exit_error "Checksum download failed"
   fi
 }
 
-function untar_img() {
-  debug "Decompressing ${img_path}"
+function check_checksum() 
+{
+    # TODO
+    local sum_to_find=$(cat ${checksum_path} | awk '{print $1}')
+    local sum_computed=$(sha512sum ${tar_path} | awk '{print $1}')
+    if [ "${sum_to_find}" == "${sum_computed}" ]
+    then
+        return 0
+    else
+        return 1
+    fi
+}
 
-  tar xf "${img_path}" -C "${tmp_dir}"
+function untar_img() 
+{
+  debug "Decompressing ${tar_path}"
+
+  tar xf "${tar_path}" -C "${tmp_dir}"
 
   # Should not have more than 1 line, but, you know...
   img_path=$(find "${tmp_dir}" -name '*.img' | head -n1)
@@ -496,21 +589,22 @@ function untar_img() {
 ### CORE FUNCTIONS ###
 ######################
 
-function install_clear() {
+function install_clear() 
+{
   local partition1=$(get_partition_path 1)
 
   confirm_writing
 
   info "Please wait..."
 
-  debug "Raw copying ${img_path} to ${opt_sdcardpath} (dd)"
-  sudo dd if="${img_path}" of="${opt_sdcardpath}" bs=1M conv=fsync oflag=nocache,sync &> /dev/null
+  debug "Raw copying ${img_path} to ${sdcardpath} (dd)"
+  sudo dd if="${img_path}" of="${sdcardpath}" bs=1M conv=fsync oflag=nocache,sync &> /dev/null
 
   debug "Flushing file system buffers"
   sudo sync
 
-  debug "Rereading partition table of ${opt_sdcardpath}"
-  sudo partprobe "${opt_sdcardpath}"
+  debug "Rereading partition table of ${sdcardpath}"
+  sudo partprobe "${sdcardpath}"
 
   mkdir -p "${files_path}" "${raspi_mountpoint}"
 
@@ -518,98 +612,64 @@ function install_clear() {
   sudo mount "${partition1}" "${raspi_mountpoint}"
 }
 
+function main()
+{
+    trap cleaning_exit EXIT ERR
+    trap cleaning_ctrlc INT
 
-########################
-### GLOBAL VARIABLES ###
-########################
+    parse_options "$@"
 
-url_base=https://build.yunohost.org/
-gpg_key=0xCD8F4D648AC0ECC1
-gpg_server=keyserver.ubuntu.com
-deb_version=jessie
-opt_findraspberries=false
-opt_debug=false
-tmp_dir=$(mktemp -dp . .install-sd.sh_tmpXXXXXX)
-raspi_mountpoint="${tmp_dir}/raspi_mountpoint"
-files_path="${tmp_dir}/files"
-img_path=
-loopdev=
+    if ${opt_findraspberries}; then
+      info "Scanning network to find awake connected Raspberries"
 
+      check_sudo
+      check_findraspberries_bins
+      find_raspberries
 
-##############
-### SCRIPT ###
-##############
+      exit_normal
+    fi
 
-trap cleaning_exit EXIT ERR
-trap cleaning_ctrlc INT
+    preamble
 
-while getopts "s:f:g:mc:y:e2ldh" opt; do
-  case $opt in
-    s) opt_sdcardpath=$OPTARG ;;
-    f) opt_imgpath=$OPTARG ;;
-    g) opt_gpgpath=$OPTARG ;;
-    l) opt_findraspberries=true ;;
-    d) opt_debug=true ;;
-    h) exit_usage ;;
-    \?) exit_usage ;;
-  esac
-done
+    if ! ${opt_custom_sdcardpath}; then
+      info "Option -s was not set, starting Assisted Block Device Detection"
+      autodetect_sdcardpath
 
-if $opt_findraspberries; then
-  info "Scanning network to find awake connected Raspberries"
+      if [ ! -z "${sdcardpath}" ]; then
+        info "SD card path was set to ${sdcardpath}"
+      fi
+    fi
 
-  check_sudo
-  check_findraspberries_bins
-  find_raspberries
+    check_sudo
+    check_args
+    check_bins
 
-  exit_normal
-fi
+    umount_sdcard
 
-preamble
+    if ! ${opt_custom_img}; then
+      if ! ${opt_custom_checksum}; then
+        info "Downloading checksum (HTTPS)"
+        download_checksum
+      fi
 
-if [ -z "${opt_sdcardpath}" ]; then
-  info "Option -s was not set, starting Assisted Block Device Detection"
-  autodetect_sdcardpath
+      info "Downloading Debian/YunoHost image (HTTPS)"
+      download_img
+    fi
 
-  if [ ! -z "${opt_sdcardpath}" ]; then
-    info "Option -s was set to ${opt_sdcardpath}"
-  fi
-fi
+    if [ -z "${checksum_path}" ]; then
+        warn "Not checking image integrity"
+    else
+        info "Verifying image integrity"
+        check_checksum
+    fi
 
-check_sudo
-check_args
-check_bins
+    info "Decompressing Debian/YunoHost image"
+    untar_img
 
-umount_sdcard
+    info "Installing SD card (this could take a few minutes)"
+    install_clear
 
-img_path=$opt_imgpath
-gpg_path=$opt_gpgpath
+    info "Done"
+}
 
-if [ -z "${img_path}" ]; then
-  info "Downloading Debian/YunoHost image (HTTPS)"
-  download_img
-
-  if [ -z "${gpg_path}" ]; then
-    info "Downloading GPG signature (HTTPS)"
-    download_gpg
-  fi
-fi
-
-if [ ! -z "${gpg_path}" ]; then
-  info "Checking GPG signature"
-  check_gpg
-fi
-
-if [ -z "${gpg_path}" ]; then
-  warn "Not checking image integrity"
-fi
-
-if [[ "${img_path}" =~ .img.tar.xz$ ]]; then
-  info "Decompressing Debian/YunoHost image"
-  untar_img
-fi
-
-info "Installing SD card (this could take a few minutes)"
-install_clear
-
-info "Done"
+main "$@"
