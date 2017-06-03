@@ -537,7 +537,6 @@ function download_img()
       fi
   fi
 
-exit
 
   if ! download_file "${url_base}${tar_name}" "${working_dir}"; then
     exit_error "Image download failed"
