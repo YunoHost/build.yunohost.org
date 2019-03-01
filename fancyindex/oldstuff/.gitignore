@@ -1,0 +1,13 @@
+# Ignore images files
+*.iso
+*.box
+*.7z
+*.zip
+
+# Ignore signature and checksums
+*.sig
+*.sum
+*.sha256sum
+
+# Ignore Debian packages
+*.deb

@@ -1,0 +1,147 @@
+@charset "UTF-8";
+
+/* Style CSS pour La Brique Internet.
+* Code vite-fait par alex/nah
+* Licence : WTFPL version 2
+*/
+
+body {
+  background-color: #fff;
+  padding: 1.4em 1.4em 0.5em;
+  color: #000;
+  font-family: Helvetica, Arial, Sans-Serif;
+  font-size: 12pt;
+  line-height: 1em;
+  max-width: 64em;
+  margin: auto;
+}
+
+h1 {
+  text-align: center;
+}
+
+em, i {
+  font-style: italic;
+}
+
+h1, h2 {
+  font-weight: 300;
+  line-height: 1em;
+  margin: 0 0 1em;
+}
+
+h2 {
+  font-size: 1.75em;
+  margin: 0;
+  line-height: 1.25;
+}
+
+a,
+a:link,
+a:visited {
+  text-decoration: underline;
+  color: #000;
+}
+
+a:hover,
+a:focus {
+  color: #0000ff;
+  text-decoration: none;
+}
+
+/**       Global sections       **/
+section {
+  padding-top: 1em;
+}
+
+section li {
+  padding: 0.2em 0;
+}
+
+pre {
+  text-shadow: 1px 1px #000;
+  box-shadow: 3px 3px 2px #000;
+  background-color: #222;
+  padding: 10px;
+}
+
+pre span {
+  color: #00f;
+}
+
+/* Anchor links */
+section[id] {position: relative;}
+section[id] .anchor-link {
+  display: none;
+  position: absolute;
+  top: 1em; /* section padding top */
+  left: -1em;
+  width: 1em;
+  text-decoration: none;
+  font-size: 1.25em;
+  line-height: 1.35;
+
+}
+section[id]:hover .anchor-link {
+  display: block;
+}
+
+
+/**  repo.labriqueinter.net  **/
+
+#files table {
+  font-family: jurabook;
+  width: 100%;
+  border-collapse: collapse;
+  color: #999;
+  margin: 15px 0;
+}
+
+#files table tr,
+#files table th,
+#files table td {
+  border: 0;
+  text-align: left;
+  font-family: sans;
+}
+
+#files table th,
+#files table td {
+  padding: 0.25em;
+}
+
+#files table th {
+  font-weight: normal;
+  border-bottom: 1px solid #999;
+}
+
+#files table a {
+  color: #000;
+  text-decoration: none;
+  padding-left: 30px;
+}
+
+#files table a:hover {
+  color: #00f;
+}
+
+footer {
+  border-top: 1px solid #999;
+  margin-top: 2em;
+  padding-top: .5em;
+  font-size: 0.9em;
+}
+
+code {
+  font-family: Helvetica, Arial, Sans-Serif;
+  background-color: #222;
+  padding: 1px 7px;
+  border: 1px solid #000;
+  text-shadow: 1px 1px #000;
+}
+
+#files h1 {
+  display: none;
+}
+
+

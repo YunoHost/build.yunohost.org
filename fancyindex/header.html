@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>YunoHost Images Repository</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/fancyindex/stylesheet.css" />
+  <script>
+    window.onload = function () {
+      var links = document.getElementById('files').getElementsByTagName('a');
+  
+      for(var i = 0; i < links.length; i++) {
+        if(links[i].innerHTML.match(/&gt;$/)) {
+          links[i].innerHTML = links[i].href.replace(/.*\/(.*)/, '$1');
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="nojs">
+  <header>
+    <h1><span>build</span>.yunohost.org</h1>
+  </header>
+  <main>
+  <p>If you are a new YunoHost user looking for pre-installed images, you might want to go to <a href="https://yunohost.org/#/images">this page</a> instead.</p>
+  <p>If you are looking for technical details regarding how we build those, you might want to look at our <a href="https://github.com/yunohost/cd_build">x86 build chain</a> (based on Debian's ISO build chain), <a href="https://github.com/yunohost/arm-images">ARM build chain</a> (based on Armbian) and the <a href="https://github.com/yunohost/rpi-image">RPi build chain</a> (based on Raspbian).</p>
+    <section id="files">
+<h1>

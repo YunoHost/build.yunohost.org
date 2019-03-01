@@ -1,12 +1,8 @@
-# Ignore images files
+*.zip
+*.sha256sum
+*.sig
 *.iso
 *.box
-*.7z
-*.zip
-
-# Ignore signature and checksums
-*.sig
-*.sum
-
-# Ignore Debian packages
 *.deb
+releases_archive
+images.json
